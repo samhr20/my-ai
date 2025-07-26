@@ -155,7 +155,7 @@
 
             try {
                 // IMPORTANT: Change this URL for local testing
-                const response = await fetch('/api/ask', {
+                const response = await fetch('https://my-ai-fv7o.vercel.app//api/ask', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question: userMessage })
