@@ -1,0 +1,9 @@
+# Ignore the node_modules directory
+node_modules/
+
+# Ignore .env files to keep secrets safe
+.env
+backend/.env
+
+# Ignore macOS system files
+.DS_Store
