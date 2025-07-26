@@ -1,46 +1,58 @@
-// backend/index.js
-
 const express = require('express');
-const cors = require('cors'); // For local testing
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
+const multer = require('multer');
+const cors = require('cors');
 
 const app = express();
 
-// --- Vercel will use this configuration ---
-app.use(cors()); // It's safe to leave this for Vercel too
-app.use(express.json());
+// Use CORS for local development and to allow cross-origin requests
+app.use(cors());
 
+// Multer setup for handling file uploads in memory
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+// Initialize Google Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// This model is specifically for multimodal (text and image) inputs
+const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
-// The serverless function handler
-app.post('/api/ask', async (req, res) => {
+// Helper function to convert buffer to a Gemini-compatible part
+function fileToGenerativePart(buffer, mimeType) {
+  return {
+    inlineData: {
+      data: buffer.toString("base64"),
+      mimeType
+    },
+  };
+}
+
+// The API endpoint is now configured to handle multipart/form-data
+app.post('/api/ask', upload.single('image'), async (req, res) => {
     try {
-        const { question } = req.body;
-        if (!question) {
-            return res.status(400).json({ error: 'Question is required' });
+        const question = req.body.question || "What do you see in the image?";
+        const imageFile = req.file;
+
+        if (!question && !imageFile) {
+            return res.status(400).json({ error: 'A question or an image is required.' });
         }
-        const result = await model.generateContent(question);
+
+        const prompt = question;
+        const imageParts = imageFile ? [fileToGenerativePart(imageFile.buffer, imageFile.mimetype)] : [];
+
+        // Generate content with both text and image if available
+        const result = await model.generateContent([prompt, ...imageParts]);
         const response = await result.response;
         const text = response.text();
+        
         res.json({ answer: text });
+
     } catch (error) {
         console.error('Error with Google Gemini API:', error);
         res.status(500).json({ error: 'Failed to get response from AI' });
     }
 });
 
-// --- THIS PART IS ONLY FOR LOCAL TESTING ---
-// Vercel ignores this block
-const port = 3000;
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(port, () => {
-        console.log(`Server is running for local testing on http://localhost:${port}`);
-    });
-}
-// --- End of local testing block ---
-
-
-// --- Vercel uses this to create the serverless function ---
+// Vercel exports the app instance
 module.exports = app;
